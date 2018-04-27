@@ -17,7 +17,6 @@ export class HeatmapBlameAnnotationProvider extends BlameAnnotationProviderBase 
 
         const start = process.hrtime();
 
-        const now = Date.now();
         const renderOptions = Annotations.heatmapRenderOptions();
 
         this.decorations = [];
@@ -25,6 +24,29 @@ export class HeatmapBlameAnnotationProvider extends BlameAnnotationProviderBase 
 
         let commit: GitBlameCommit | undefined;
         let heatmap: DecorationOptions | undefined;
+
+        let previousSha: string | undefined;
+        let commitDateRange: {start: Date, end: Date} = {start: new Date(), end: new Date(0)};
+
+        // Compute the start/end range of commits
+        for (const l of blame.lines) {
+            if (previousSha === l.sha) {
+                continue;
+            }
+
+            previousSha = l.sha;
+
+            commit = blame.commits.get(l.sha);
+            if (commit === undefined) continue;
+
+            if (commit.date < commitDateRange.start) {
+                commitDateRange.start = commit.date;
+            }
+
+            if (commit.date > commitDateRange.end) {
+                commitDateRange.end = commit.date;
+            }
+        }
 
         for (const l of blame.lines) {
             const line = l.line;
@@ -44,7 +66,7 @@ export class HeatmapBlameAnnotationProvider extends BlameAnnotationProviderBase 
             commit = blame.commits.get(l.sha);
             if (commit === undefined) continue;
 
-            heatmap = Annotations.heatmap(commit, now, renderOptions);
+            heatmap = Annotations.heatmap(commit, commitDateRange, renderOptions);
             heatmap.range = new Range(line, 0, line, 0);
 
             this.decorations.push(heatmap);

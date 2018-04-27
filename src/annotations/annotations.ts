@@ -1,10 +1,11 @@
-import { Dates, Objects, Strings } from '../system';
+import { Objects, Strings } from '../system';
 import { DecorationInstanceRenderOptions, DecorationOptions, MarkdownString, ThemableDecorationRenderOptions, ThemeColor } from 'vscode';
 import { DiffWithCommand, OpenCommitInRemoteCommand, OpenFileRevisionCommand, ShowQuickCommitDetailsCommand, ShowQuickCommitFileDetailsCommand } from '../commands';
 import { FileAnnotationType } from './../configuration';
 import { GlyphChars } from '../constants';
 import { Container } from '../container';
 import { CommitFormatter, GitCommit, GitDiffChunkLine, GitRemote, GitService, GitUri, ICommitFormatOptions } from '../gitService';
+import { lighten } from '../ui/shared/colors';
 
 interface IHeatmapConfig {
     enabled: boolean;
@@ -21,24 +22,17 @@ const escapeMarkdownRegEx = /[`\>\#\*\_\-\+\.]/g;
 
 export class Annotations {
 
-    static applyHeatmap(decoration: DecorationOptions, date: Date, now: number) {
-        const color = this.getHeatmapColor(now, date);
+    static applyHeatmap(decoration: DecorationOptions, date: Date, commitDateRange: {start: Date, end: Date}) {
+        const color = this.getHeatmapColor(date, commitDateRange);
         (decoration.renderOptions!.before! as any).borderColor = color;
     }
 
-    private static getHeatmapColor(now: number, date: Date) {
-        const days = Dates.dateDaysFromNow(date, now);
+    private static getHeatmapColor(date: Date, commitDateRange: {start: Date, end: Date}) {
+        const value = date.getTime() - commitDateRange.start.getTime();
+        const range = (commitDateRange.end.getTime() - commitDateRange.start.getTime()) || 1;
+        const percentage = value / range * 100;
 
-        if (days <= 2) return '#ffeca7';
-        if (days <= 7) return '#ffdd8c';
-        if (days <= 14) return '#ffdd7c';
-        if (days <= 30) return '#fba447';
-        if (days <= 60) return '#f68736';
-        if (days <= 90) return '#f37636';
-        if (days <= 180) return '#ca6632';
-        if (days <= 365) return '#c0513f';
-        if (days <= 730) return '#a2503a';
-        return '#793738';
+        return lighten('#000000', percentage);
     }
 
     private static getHoverCommandBar(commit: GitCommit, hasRemote: boolean, annotationType?: FileAnnotationType, line: number = 0) {
@@ -213,14 +207,14 @@ export class Annotations {
         } as IRenderOptions;
     }
 
-    static heatmap(commit: GitCommit, now: number, renderOptions: IRenderOptions): DecorationOptions {
+    static heatmap(commit: GitCommit, commitDateRange: {start: Date, end: Date}, renderOptions: IRenderOptions): DecorationOptions {
         const decoration = {
             renderOptions: {
                 before: { ...renderOptions }
             } as DecorationInstanceRenderOptions
         } as DecorationOptions;
 
-        Annotations.applyHeatmap(decoration, commit.date, now);
+        Annotations.applyHeatmap(decoration, commit.date, commitDateRange);
 
         return decoration;
     }

@@ -33,7 +33,6 @@ export class GutterBlameAnnotationProvider extends BlameAnnotationProviderBase {
             tokenOptions: tokenOptions
         };
 
-        const now = Date.now();
         const avatars = cfg.avatars;
         const gravatarDefault = Container.config.defaultGravatarsStyle;
         const separateLines = cfg.separateLines;
@@ -47,7 +46,29 @@ export class GutterBlameAnnotationProvider extends BlameAnnotationProviderBase {
         let compacted = false;
         let gutter: DecorationOptions | undefined;
         let previousSha: string | undefined;
+        let commitDateRange: {start: Date, end: Date} = {start: new Date(), end: new Date(0)};
 
+        // Compute the start/end range of commits
+        for (const l of blame.lines) {
+            if (previousSha === l.sha) {
+                continue;
+            }
+
+            previousSha = l.sha;
+
+            commit = blame.commits.get(l.sha);
+            if (commit === undefined) continue;
+
+            if (commit.date < commitDateRange.start) {
+                commitDateRange.start = commit.date;
+            }
+
+            if (commit.date > commitDateRange.end) {
+                commitDateRange.end = commit.date;
+            }
+        }
+
+        previousSha = undefined;
         for (const l of blame.lines) {
             const line = l.line;
 
@@ -107,7 +128,7 @@ export class GutterBlameAnnotationProvider extends BlameAnnotationProviderBase {
             gutter = Annotations.gutter(commit, cfg.format, options, renderOptions);
 
             if (cfg.heatmap.enabled) {
-                Annotations.applyHeatmap(gutter, commit.date, now);
+                Annotations.applyHeatmap(gutter, commit.date, commitDateRange);
             }
 
             gutter.range = new Range(line, 0, line, 0);
